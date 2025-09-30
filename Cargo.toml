@@ -56,6 +56,10 @@ name = "bulk_io_smol"
 required-features = ["smol"]
 
 [[example]]
+name = "iso_io_smol"
+required-features = ["smol"]
+
+[[example]]
 name = "bulk_io_tokio"
 required-features = ["tokio"]
 

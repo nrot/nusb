@@ -810,6 +810,7 @@ impl LinuxEndpoint {
         })
     }
 
+    #[cfg(not(target_os="android"))]
     pub(crate) fn allocate(&self, len: usize) -> Result<Buffer, Errno> {
         Buffer::mmap(&self.inner.interface.device.fd, len).inspect_err(|e| {
             warn!(

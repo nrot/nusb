@@ -650,7 +650,7 @@ impl<EpType: BulkOrInterrupt, Dir: EndpointDirection> Endpoint<EpType, Dir> {
     /// This is currently only supported on Linux, falling back to [`Buffer::new`]
     /// on other platforms, or if the memory allocation fails.
     pub fn allocate(&self, len: usize) -> Buffer {
-        #[cfg(any(target_os = "linux", target_os = "android"))]
+        #[cfg(any(target_os = "linux"))] // target_os = "android")
         {
             if let Ok(b) = self.backend.allocate(len) {
                 return b;
