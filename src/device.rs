@@ -3,11 +3,10 @@ use crate::{
         decode_string_descriptor, validate_string_descriptor, ConfigurationDescriptor,
         DeviceDescriptor, InterfaceDescriptor, DESCRIPTOR_TYPE_STRING,
     },
-    io::{EndpointRead, EndpointWrite},
+    io::{EndpointRead, EndpointWrite, IsoReader},
     platform,
     transfer::{
-        Buffer, BulkOrInterrupt, Completion, ControlIn, ControlOut, Direction, EndpointDirection,
-        EndpointType, In, Out, TransferError,
+        Buffer, BulkOrInterrupt, Completion, ControlIn, ControlOut, Direction, EndpointDirection, EndpointType, In, Isochronous, Out, TransferError
     },
     ActiveConfigurationError, DeviceInfo, Error, ErrorKind, GetDescriptorError, MaybeFuture, Speed,
 };
@@ -764,6 +763,23 @@ impl<EpType: BulkOrInterrupt, Dir: EndpointDirection> Debug for Endpoint<EpType,
             .field("type", &EpType::TYPE)
             .field("direction", &Dir::DIR)
             .finish()
+    }
+}
+
+impl Endpoint<Isochronous, In>{
+    /// Create an [`EndpointRead`] wrapping the given endpoint to provide a
+    /// high-level buffered API implementing [`std::io::Read`] and  async
+    /// equivalents.
+    ///
+    /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
+    pub fn start(mut self, buf: Buffer,iso_packet_size: usize) -> std::io::Result<IsoReader> {
+        // , iso_packet_amount: usize
+        // let iso_packet_size = buffer_size / iso_packet_amount;
+        // debug_assert_ne!(iso_packet_size, 0 );
+
+        self.backend.start_iso(buf, iso_packet_size);
+
+        IsoReader::new(self)
     }
 }
 

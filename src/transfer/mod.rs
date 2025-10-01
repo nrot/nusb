@@ -142,9 +142,6 @@ impl EndpointType for Isochronous {
     const TYPE: TransferType = TransferType::Isochronous;
 }
 
-#[cfg(target_os = "linux")]
-impl BulkOrInterrupt for Isochronous {}
-
 /// A completed transfer returned from [`Endpoint::next_complete`][`crate::Endpoint::next_complete`].
 ///
 /// A transfer can partially complete even in the case of failure or

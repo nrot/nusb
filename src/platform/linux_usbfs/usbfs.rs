@@ -191,6 +191,14 @@ pub const USBDEVFS_URB_TYPE_BULK: c_uchar = 3;
 
 #[repr(C)]
 #[derive(Debug)]
+pub struct IsoPacketDesc{
+    pub length: c_uint,
+    pub actual_length: c_uint,
+    pub status: c_uint
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct Urb {
     pub ep_type: c_uchar,
     pub endpoint: c_uchar,
@@ -204,6 +212,7 @@ pub struct Urb {
     pub error_count: c_int,
     pub signr: c_uint,
     pub usercontext: *mut c_void,
+    pub iso_frame_desc: *mut IsoPacketDesc,
     // + variable size array of iso_packet_desc
 }
 

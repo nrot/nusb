@@ -769,6 +769,16 @@ impl LinuxEndpoint {
             .push_back(self.inner.interface.device.submit(transfer));
     }
 
+    pub(crate) fn start_iso(&mut self, data: Buffer, iso_packet_size: usize) {
+        debug_assert_ne!(self.inner.ep_type, TransferType::Isochronous);
+
+        let mut transfer = self.get_transfer();
+        transfer.set_iso_buffer(data, iso_packet_size);
+
+        self.pending
+            .push_back(self.inner.interface.device.submit(transfer));
+    }
+
     pub(crate) fn submit_err(&mut self, data: Buffer, error: TransferError) {
         assert_eq!(error, TransferError::InvalidArgument);
         let mut transfer = self.get_transfer();
@@ -810,7 +820,7 @@ impl LinuxEndpoint {
         })
     }
 
-    #[cfg(not(target_os="android"))]
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn allocate(&self, len: usize) -> Result<Buffer, Errno> {
         Buffer::mmap(&self.inner.interface.device.fd, len).inspect_err(|e| {
             warn!(

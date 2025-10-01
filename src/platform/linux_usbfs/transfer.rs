@@ -8,11 +8,9 @@ use std::{
 use rustix::io::Errno;
 
 use crate::{
-    descriptors::TransferType,
-    transfer::{
-        internal::Pending, Allocator, Buffer, Completion, ControlIn, ControlOut, Direction,
-        TransferError, SETUP_PACKET_SIZE,
-    },
+    descriptors::TransferType, platform::linux_usbfs::usbfs::IsoPacketDesc, transfer::{
+        internal::Pending, Allocator, Buffer, Completion, ControlIn, ControlOut, Direction, TransferError, SETUP_PACKET_SIZE
+    }
 };
 
 use super::{
@@ -31,6 +29,7 @@ use super::{
 /// `iso_packet_desc` array.
 pub struct TransferData {
     urb: *mut Urb,
+    ep_type: TransferType,
     capacity: u32,
     allocator: Allocator,
     pub(crate) deadline: Option<Instant>,
@@ -41,6 +40,7 @@ unsafe impl Sync for TransferData {}
 
 impl TransferData {
     pub(super) fn new(endpoint: u8, ep_type: TransferType) -> TransferData {
+        let transfer_type = ep_type;
         let ep_type = match ep_type {
             TransferType::Control => USBDEVFS_URB_TYPE_CONTROL,
             TransferType::Interrupt => USBDEVFS_URB_TYPE_INTERRUPT,
@@ -64,7 +64,9 @@ impl TransferData {
                 error_count: 0,
                 signr: 0,
                 usercontext: null_mut(),
+                iso_frame_desc: null_mut(),
             })),
+            ep_type: transfer_type,
             capacity: 0,
             allocator: Allocator::Default,
             deadline: None,
@@ -89,6 +91,7 @@ impl TransferData {
     }
 
     pub fn set_buffer(&mut self, buf: Buffer) {
+        debug_assert_ne!(self.ep_type, TransferType::Isochronous);
         debug_assert!(self.capacity == 0);
         let buf = ManuallyDrop::new(buf);
         self.capacity = buf.capacity;
@@ -99,6 +102,24 @@ impl TransferData {
             Direction::In => buf.requested_len as i32,
         };
         self.allocator = buf.allocator;
+    }
+
+    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_size: usize){
+        debug_assert_eq!(self.ep_type, TransferType::Isochronous);
+        let packets = buf.len() / iso_packet_size;
+        debug_assert!(packets < u32::MAX as usize);
+        self.urb_mut().number_of_packets_or_stream_id = packets as u32;
+        self.set_buffer(buf);
+        let mut iso_packets = Vec::with_capacity(packets);
+        for _ in 0..packets{
+            iso_packets.push(IsoPacketDesc{
+                length: iso_packet_size as u32,
+                actual_length: 0,
+                status: 0,
+            });
+        }
+        let mut iso_packets = ManuallyDrop::new(iso_packets);
+        self.urb_mut().iso_frame_desc = iso_packets.as_mut_ptr();
     }
 
     pub fn take_completion(&mut self) -> Completion {

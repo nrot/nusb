@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    transfer::{Buffer, BulkOrInterrupt, In, TransferError},
+    transfer::{Buffer, BulkOrInterrupt, In, Isochronous, TransferError},
     Endpoint,
 };
 
@@ -543,4 +543,18 @@ impl<EpType: BulkOrInterrupt> futures_io::AsyncBufRead
     fn consume(self: Pin<&mut Self>, amt: usize) {
         Pin::into_inner(self).reader.consume(amt);
     }
+}
+
+
+pub struct IsoReader{
+    endpoint: Endpoint<Isochronous, In>
+}
+
+impl IsoReader{
+    pub fn new(endpoint: Endpoint<Isochronous, In>)->Result<Self, std::io::Error>{
+        
+
+        unimplemented!()
+    }
+
 }
