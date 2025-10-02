@@ -215,6 +215,13 @@ impl LinuxDevice {
                         transfer.urb().status,
                         transfer.urb().actual_length
                     );
+                    if let Some(end) = transfer.end_iso() {
+                        debug!(
+                            "URB ISO end={end}, num={}, actual_length={}",
+                            transfer.urb().number_of_packets_or_stream_id,
+                            transfer.urb().actual_length
+                        )
+                    }
 
                     if let Some(deadline) = transfer.deadline {
                         let mut timeouts = self.timeouts.lock().unwrap();
@@ -770,7 +777,7 @@ impl LinuxEndpoint {
     }
 
     pub(crate) fn start_iso(&mut self, data: Buffer, iso_packet_size: usize) {
-        debug_assert_ne!(self.inner.ep_type, TransferType::Isochronous);
+        debug_assert_eq!(self.inner.ep_type, TransferType::Isochronous);
 
         let mut transfer = self.get_transfer();
         transfer.set_iso_buffer(data, iso_packet_size);

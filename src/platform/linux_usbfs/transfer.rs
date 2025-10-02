@@ -8,9 +8,12 @@ use std::{
 use rustix::io::Errno;
 
 use crate::{
-    descriptors::TransferType, platform::linux_usbfs::usbfs::IsoPacketDesc, transfer::{
-        internal::Pending, Allocator, Buffer, Completion, ControlIn, ControlOut, Direction, TransferError, SETUP_PACKET_SIZE
-    }
+    descriptors::TransferType,
+    platform::linux_usbfs::usbfs::IsoPacketDesc,
+    transfer::{
+        internal::Pending, Allocator, Buffer, Completion, ControlIn, ControlOut, Direction,
+        TransferError, SETUP_PACKET_SIZE,
+    },
 };
 
 use super::{
@@ -91,7 +94,7 @@ impl TransferData {
     }
 
     pub fn set_buffer(&mut self, buf: Buffer) {
-        debug_assert_ne!(self.ep_type, TransferType::Isochronous);
+        // debug_assert_eq!(self.ep_type, TransferType::Isochronous);
         debug_assert!(self.capacity == 0);
         let buf = ManuallyDrop::new(buf);
         self.capacity = buf.capacity;
@@ -104,15 +107,15 @@ impl TransferData {
         self.allocator = buf.allocator;
     }
 
-    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_size: usize){
+    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_size: usize) {
         debug_assert_eq!(self.ep_type, TransferType::Isochronous);
         let packets = buf.len() / iso_packet_size;
         debug_assert!(packets < u32::MAX as usize);
         self.urb_mut().number_of_packets_or_stream_id = packets as u32;
         self.set_buffer(buf);
         let mut iso_packets = Vec::with_capacity(packets);
-        for _ in 0..packets{
-            iso_packets.push(IsoPacketDesc{
+        for _ in 0..packets {
+            iso_packets.push(IsoPacketDesc {
                 length: iso_packet_size as u32,
                 actual_length: 0,
                 status: 0,
@@ -120,6 +123,21 @@ impl TransferData {
         }
         let mut iso_packets = ManuallyDrop::new(iso_packets);
         self.urb_mut().iso_frame_desc = iso_packets.as_mut_ptr();
+    }
+
+    pub fn end_iso(&self) -> Option<bool> {
+        if self.ep_type == TransferType::Isochronous {
+            let urb = self.urb();
+            let packets = unsafe {
+                slice::from_raw_parts(
+                    urb.iso_frame_desc,
+                    urb.number_of_packets_or_stream_id as usize,
+                )
+            };
+            Some(packets.iter().all(|p| p.status == 0))
+        } else {
+            None
+        }
     }
 
     pub fn take_completion(&mut self) -> Completion {

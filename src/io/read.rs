@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    transfer::{Buffer, BulkOrInterrupt, In, Isochronous, TransferError},
+    transfer::{Buffer, BulkOrInterrupt, Completion, In, Isochronous, TransferError},
     Endpoint,
 };
 
@@ -545,16 +545,47 @@ impl<EpType: BulkOrInterrupt> futures_io::AsyncBufRead
     }
 }
 
-
-pub struct IsoReader{
-    endpoint: Endpoint<Isochronous, In>
+pub struct IsoReader {
+    endpoint: Endpoint<Isochronous, In>,
+    iso_packet_size: usize,
 }
 
-impl IsoReader{
-    pub fn new(endpoint: Endpoint<Isochronous, In>)->Result<Self, std::io::Error>{
-        
-
-        unimplemented!()
+impl IsoReader {
+    pub fn new(
+        endpoint: Endpoint<Isochronous, In>,
+        iso_packet_size: usize,
+    ) -> Result<Self, std::io::Error> {
+        Ok(Self {
+            endpoint,
+            iso_packet_size,
+        })
     }
 
+    pub fn wait_next_complete(&mut self, timeout: Duration)->Option<Completion>{
+        self.endpoint.wait_next_complete(timeout)
+    }
+}
+
+impl Read for IsoReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        todo!()
+    }
+}
+
+impl BufRead for IsoReader {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        let completion = self
+            .endpoint
+            .wait_next_complete(Duration::from_secs(1))
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "timeout waiting for read",
+            ))?;
+
+        todo!()
+    }
+
+    fn consume(&mut self, amount: usize) {
+        todo!()
+    }
 }

@@ -772,14 +772,30 @@ impl Endpoint<Isochronous, In>{
     /// equivalents.
     ///
     /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
-    pub fn start(mut self, buf: Buffer,iso_packet_size: usize) -> std::io::Result<IsoReader> {
-        // , iso_packet_amount: usize
-        // let iso_packet_size = buffer_size / iso_packet_amount;
-        // debug_assert_ne!(iso_packet_size, 0 );
+    pub fn reader(mut self, buffer_size:usize, iso_packet_amount: usize) -> std::io::Result<IsoReader> {
+        let iso_packet_size = buffer_size / iso_packet_amount;
+        debug_assert_ne!(iso_packet_size, 0 );
 
-        self.backend.start_iso(buf, iso_packet_size);
+        let buffer = self.backend.allocate(buffer_size)?;
 
-        IsoReader::new(self)
+        self.backend.start_iso(buffer, iso_packet_size);
+
+        IsoReader::new(self, iso_packet_size)
+    }
+
+    /// Wait for a pending transfer completion.
+    ///
+    /// Blocks for up to `timeout` waiting for a transfer to complete, or
+    /// returns `None` if the timeout is reached.
+    ///
+    /// Note that the transfer is not cancelled after the timeout, and can still
+    /// be returned from a subsequent call.
+    ///
+    /// ## Panics
+    ///  * if there are no transfers pending (that is, if [`Self::pending()`]
+    ///    would return 0).
+    pub fn wait_next_complete(&mut self, timeout: Duration) -> Option<Completion> {
+        self.backend.wait_next_complete(timeout)
     }
 }
 
