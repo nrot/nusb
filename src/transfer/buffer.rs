@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum Allocator {
     Default,
     #[cfg(any(target_os = "linux", target_os = "android"))]

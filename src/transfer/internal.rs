@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    fmt::Debug,
     future::Future,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
@@ -91,6 +92,15 @@ struct TransferInner<P> {
     notify: Arc<dyn AsRef<Notify> + Send + Sync>,
 }
 
+impl<P: Debug> Debug for TransferInner<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransferInner")
+            .field("platform_data", &self.platform_data)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
 /// Either the transfer has not yet been submitted, or it has been completed.
 /// The inner data may be accessed mutably.
 const STATE_IDLE: u8 = 0;
@@ -105,6 +115,7 @@ const STATE_PENDING: u8 = 1;
 const STATE_ABANDONED: u8 = 2;
 
 /// Handle to a transfer that is known to be idle.
+#[derive(Debug)]
 pub(crate) struct Idle<P>(Box<TransferInner<P>>);
 
 impl<P> Idle<P> {
@@ -185,7 +196,7 @@ impl<P> Pending<P> {
     }
 }
 
-pub fn take_completed_from_queue<P>(queue: &mut VecDeque<Pending<P>>) -> Option<Idle<P>> {
+pub fn take_completed_from_queue<P: Debug>(queue: &mut VecDeque<Pending<P>>) -> Option<Idle<P>> {
     if queue.front().expect("no transfer pending").is_complete() {
         Some(unsafe { queue.pop_front().unwrap().into_idle() })
     } else {
@@ -193,7 +204,7 @@ pub fn take_completed_from_queue<P>(queue: &mut VecDeque<Pending<P>>) -> Option<
     }
 }
 
-pub fn take_completed_from_option<P>(option: &mut Option<Pending<P>>) -> Option<Idle<P>> {
+pub fn take_completed_from_option<P: Debug>(option: &mut Option<Pending<P>>) -> Option<Idle<P>> {
     // TODO: use Option::take_if once supported by MSRV
     if option.as_mut().is_some_and(|next| next.is_complete()) {
         option.take().map(|t| unsafe { t.into_idle() })
@@ -249,7 +260,7 @@ impl<D> TransferFuture<D> {
     }
 }
 
-impl<D> Future for TransferFuture<D> {
+impl<D:Debug> Future for TransferFuture<D> {
     type Output = Idle<D>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -258,7 +269,7 @@ impl<D> Future for TransferFuture<D> {
     }
 }
 
-impl<D> MaybeFuture for TransferFuture<D>
+impl<D:Debug> MaybeFuture for TransferFuture<D>
 where
     D: Send,
 {

@@ -1,10 +1,12 @@
 use std::{
+    fmt::Debug,
     mem::{self, ManuallyDrop},
     ptr::{addr_of_mut, null_mut},
     slice,
     time::Instant,
 };
 
+use log::trace;
 use rustix::io::Errno;
 
 use crate::{
@@ -36,6 +38,19 @@ pub struct TransferData {
     capacity: u32,
     allocator: Allocator,
     pub(crate) deadline: Option<Instant>,
+}
+
+impl Debug for TransferData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransferData")
+            .field("urb_ptr", &self.urb)
+            .field("urb", unsafe { &*self.urb })
+            .field("ep_type", &self.ep_type)
+            .field("capacity", &self.capacity)
+            .field("allocator", &self.allocator)
+            .field("deadline", &self.deadline)
+            .finish()
+    }
 }
 
 unsafe impl Send for TransferData {}
@@ -107,16 +122,20 @@ impl TransferData {
         self.allocator = buf.allocator;
     }
 
-    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_size: usize) {
+    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_amount: u32) {
+        trace!("Buffer for iso submit: {buf:#?}");
+
         debug_assert_eq!(self.ep_type, TransferType::Isochronous);
-        let packets = buf.len() / iso_packet_size;
-        debug_assert!(packets < u32::MAX as usize);
-        self.urb_mut().number_of_packets_or_stream_id = packets as u32;
+        let packet_len = buf.capacity / iso_packet_amount;
+        debug_assert_ne!(packet_len, 0, "Buffer capacity: {}", buf.capacity);
+
+        self.urb_mut().number_of_packets_or_stream_id = iso_packet_amount as u32;
         self.set_buffer(buf);
-        let mut iso_packets = Vec::with_capacity(packets);
-        for _ in 0..packets {
+
+        let mut iso_packets = Vec::with_capacity(iso_packet_amount as usize);
+        for _ in 0..iso_packet_amount {
             iso_packets.push(IsoPacketDesc {
-                length: iso_packet_size as u32,
+                length: packet_len as u32,
                 actual_length: 0,
                 status: 0,
             });

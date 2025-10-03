@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 use rustix::{
     event::epoll::EventFlags,
     fd::{AsFd, AsRawFd, FromRawFd, OwnedFd},
@@ -770,18 +770,22 @@ impl LinuxEndpoint {
     }
 
     pub(crate) fn submit(&mut self, data: Buffer) {
+        trace!("Submit");
         let mut transfer = self.get_transfer();
         transfer.set_buffer(data);
+        trace!("Submit transfer: {transfer:#?}");
         self.pending
             .push_back(self.inner.interface.device.submit(transfer));
     }
 
-    pub(crate) fn start_iso(&mut self, data: Buffer, iso_packet_size: usize) {
+    pub(crate) fn start_iso(&mut self, data: Buffer, iso_packet_amount: usize) {
         debug_assert_eq!(self.inner.ep_type, TransferType::Isochronous);
+        trace!("Submit iso");
 
         let mut transfer = self.get_transfer();
-        transfer.set_iso_buffer(data, iso_packet_size);
+        transfer.set_iso_buffer(data, iso_packet_amount as u32);
 
+        trace!("Submit iso transfer: {transfer:#?}");
         self.pending
             .push_back(self.inner.interface.device.submit(transfer));
     }

@@ -773,14 +773,14 @@ impl Endpoint<Isochronous, In>{
     ///
     /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
     pub fn reader(mut self, buffer_size:usize, iso_packet_amount: usize) -> std::io::Result<IsoReader> {
-        let iso_packet_size = buffer_size / iso_packet_amount;
-        debug_assert_ne!(iso_packet_size, 0 );
+        debug_assert_ne!(iso_packet_amount,  0);
 
         let buffer = self.backend.allocate(buffer_size)?;
+        // let buffer = Buffer::new(buffer_size);
 
-        self.backend.start_iso(buffer, iso_packet_size);
+        self.backend.start_iso(buffer, iso_packet_amount);
 
-        IsoReader::new(self, iso_packet_size)
+        IsoReader::new(self, iso_packet_amount)
     }
 
     /// Wait for a pending transfer completion.
@@ -795,7 +795,8 @@ impl Endpoint<Isochronous, In>{
     ///  * if there are no transfers pending (that is, if [`Self::pending()`]
     ///    would return 0).
     pub fn wait_next_complete(&mut self, timeout: Duration) -> Option<Completion> {
-        self.backend.wait_next_complete(timeout)
+        self.backend.wait_next_complete(timeout);
+        todo!()
     }
 }
 
