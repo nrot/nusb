@@ -6,7 +6,8 @@ use crate::{
     io::{EndpointRead, EndpointWrite, IsoReader},
     platform,
     transfer::{
-        Buffer, BulkOrInterrupt, Completion, ControlIn, ControlOut, Direction, EndpointDirection, EndpointType, In, Isochronous, Out, TransferError
+        Buffer, BulkOrInterrupt, Completion, ControlIn, ControlOut, Direction, EndpointDirection,
+        EndpointType, In, Isochronous, Out, TransferError,
     },
     ActiveConfigurationError, DeviceInfo, Error, ErrorKind, GetDescriptorError, MaybeFuture, Speed,
 };
@@ -766,29 +767,50 @@ impl<EpType: BulkOrInterrupt, Dir: EndpointDirection> Debug for Endpoint<EpType,
     }
 }
 
-impl Endpoint<Isochronous, In>{
+impl Endpoint<Isochronous, In> {
     /// Create an [`EndpointRead`] wrapping the given endpoint to provide a
     /// high-level buffered API implementing [`std::io::Read`] and  async
     /// equivalents.
     ///
     /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
-    pub fn reader(mut self, buffer_size:usize, iso_packets: usize, iso_packet_size: usize) -> std::io::Result<IsoReader> {
-        debug_assert_ne!(iso_packet_size,  0);
+    pub fn reader(
+        mut self,
+        buffer_size: usize,
+        iso_packets: usize,
+        iso_packet_size: usize,
+    ) -> std::io::Result<IsoReader> {
+        debug_assert_ne!(iso_packet_size, 0);
         trace!("Buffer size: {buffer_size}; iso_packets: {iso_packets}; iso_packet_size: {iso_packet_size}");
         // debug_assert!(buffer_size < self.max_packet_size());
 
-        let buffer = self.backend.allocate(buffer_size)?;
+        for _ in 0..1 {
+            let buffer = self.backend.allocate(buffer_size)?;
 
-        for i in 0..iso_packets{
-            // let buffer = self.backend.allocate(iso_packet_size)?;
-            self.backend.start_iso(buffer, iso_packets, iso_packet_size);
-            break;
-        };
+            for _ in 0..iso_packets {
+                // let buffer = self.backend.allocate(iso_packet_size)?;
+                self.backend.start_iso(buffer, iso_packets, iso_packet_size);
+                break;
+            }
+        }
 
         // let buffer = Buffer::new(buffer_size);
 
-        IsoReader::new(self, iso_packet_size)
+        IsoReader::new(self, buffer_size, iso_packets, iso_packet_size )
     }
+
+    pub(crate) fn read_next(&mut self,
+        buffer_size: usize,
+        iso_packets: usize,
+        iso_packet_size: usize,)->std::io::Result<()>{
+             let buffer = self.backend.allocate(buffer_size)?;
+
+            for _ in 0..iso_packets {
+                // let buffer = self.backend.allocate(iso_packet_size)?;
+                self.backend.start_iso(buffer, iso_packets, iso_packet_size);
+                break;
+            }
+            Ok(())
+        }
 
     /// Wait for a pending transfer completion.
     ///

@@ -244,6 +244,7 @@ pub(crate) unsafe fn notify_completion<P>(transfer: *mut P) {
     }
 }
 
+
 pub(crate) struct TransferFuture<D> {
     transfer: Option<Pending<D>>,
     notify: Arc<Notify>,
@@ -260,7 +261,7 @@ impl<D> TransferFuture<D> {
     }
 }
 
-impl<D:Debug> Future for TransferFuture<D> {
+impl<D: Debug> Future for TransferFuture<D> {
     type Output = Idle<D>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -269,7 +270,7 @@ impl<D:Debug> Future for TransferFuture<D> {
     }
 }
 
-impl<D:Debug> MaybeFuture for TransferFuture<D>
+impl<D: Debug> MaybeFuture for TransferFuture<D>
 where
     D: Send,
 {

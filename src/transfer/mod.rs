@@ -142,6 +142,13 @@ impl EndpointType for Isochronous {
     const TYPE: TransferType = TransferType::Isochronous;
 }
 
+#[derive(Debug)]
+pub struct IsoStatus{
+    pub length: u32,
+    pub actual_length: u32,
+    pub status: u32,
+}
+
 /// A completed transfer returned from [`Endpoint::next_complete`][`crate::Endpoint::next_complete`].
 ///
 /// A transfer can partially complete even in the case of failure or
@@ -157,6 +164,8 @@ pub struct Completion {
 
     /// Status of the transfer.
     pub status: Result<(), TransferError>,
+
+    pub iso_status: Vec<Result<IsoStatus, TransferError>>
 }
 
 impl Completion {

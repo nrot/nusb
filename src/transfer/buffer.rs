@@ -1,7 +1,7 @@
 use std::{
     fmt::Debug,
     mem::{ManuallyDrop, MaybeUninit},
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut}, slice,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -197,6 +197,12 @@ impl Buffer {
             }
             #[allow(unreachable_patterns)]
             _ => self[..].to_vec(),
+        }
+    }
+
+    pub unsafe fn raw_requested(&self) -> &[u8]{
+        unsafe {
+            slice::from_raw_parts(self.ptr, self.requested_len as usize)
         }
     }
 }

@@ -547,22 +547,34 @@ impl<EpType: BulkOrInterrupt> futures_io::AsyncBufRead
 
 pub struct IsoReader {
     endpoint: Endpoint<Isochronous, In>,
-    iso_packet_size: usize,
+    buffer_size: usize,
+    iso_packets: usize,
+    iso_packet_size: usize
 }
 
 impl IsoReader {
     pub fn new(
         endpoint: Endpoint<Isochronous, In>,
-        iso_packet_size: usize,
+        buffer_size: usize,
+        iso_packets: usize,
+        iso_packet_size: usize
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
             endpoint,
             iso_packet_size,
+            buffer_size,
+            iso_packets
         })
     }
 
     pub fn wait_next_complete(&mut self, timeout: Duration)->Option<Completion>{
-        self.endpoint.wait_next_complete(timeout)
+        let res = self.endpoint.wait_next_complete(timeout);
+
+        if res.is_some(){
+            self.endpoint.read_next(self.buffer_size, self.iso_packets, self.iso_packet_size).unwrap();
+        }
+
+        res
     }
 }
 

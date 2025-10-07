@@ -40,7 +40,8 @@ use crate::{
     maybe_future::{blocking::Blocking, MaybeFuture},
     transfer::{
         internal::{
-            notify_completion, take_completed_from_queue, Idle, Notify, Pending, TransferFuture,
+            notify_completion, take_completed_from_queue, Idle, Notify, Pending,
+            TransferFuture,
         },
         request_type, Buffer, Completion, ControlIn, ControlOut, ControlType, Direction, Recipient,
         TransferError,
@@ -204,7 +205,6 @@ impl LinuxDevice {
         match usbfs::reap_urb_ndelay(&self.fd) {
             Ok(urb) => {
                 let transfer_data: *mut TransferData = unsafe { &(*urb) }.usercontext.cast();
-
                 {
                     let transfer = unsafe { &*transfer_data };
                     debug_assert!(transfer.urb_ptr() == urb);
@@ -215,13 +215,12 @@ impl LinuxDevice {
                         transfer.urb().status,
                         transfer.urb().actual_length
                     );
-                    if let Some(end) = transfer.end_iso() {
-                        debug!(
-                            "URB ISO end={end}, num={}, actual_length={}",
-                            transfer.urb().number_of_packets_or_stream_id,
-                            transfer.urb().actual_length
-                        )
-                    }
+
+                    debug!(
+                        "URB ISO num={}, actual_length={}",
+                        transfer.urb().number_of_packets_or_stream_id,
+                        transfer.urb().actual_length
+                    );
 
                     if let Some(deadline) = transfer.deadline {
                         let mut timeouts = self.timeouts.lock().unwrap();
@@ -229,6 +228,7 @@ impl LinuxDevice {
                         self.update_timeouts(timeouts, Instant::now());
                     }
                 };
+
 
                 // SAFETY: pointer came from submit via kernel and we're now done with it
                 unsafe { notify_completion::<super::TransferData>(transfer_data) }
@@ -783,7 +783,7 @@ impl LinuxEndpoint {
         trace!("Submit iso");
 
         let mut transfer = self.get_transfer();
-        transfer.set_iso_buffer(data,iso_packets,  iso_packet_size as u32);
+        transfer.set_iso_buffer(data, iso_packets, iso_packet_size as u32);
 
         trace!("Submit iso transfer: {transfer:#?}");
         self.pending

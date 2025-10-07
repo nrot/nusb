@@ -16,7 +16,7 @@ use crate::{
     platform::linux_usbfs::usbfs::IsoPacketDesc,
     transfer::{
         internal::Pending, Allocator, Buffer, Completion, ControlIn, ControlOut, Direction,
-        TransferError, SETUP_PACKET_SIZE,
+        IsoStatus, TransferError, SETUP_PACKET_SIZE,
     },
 };
 
@@ -155,7 +155,7 @@ impl TransferData {
 
         let old_urb = self.urb().clone();
         if !self.urb_iso.is_null() {
-            let for_drop = unsafe { Box::from_raw(self.urb) };
+            let _for_drop = unsafe { Box::from_raw(self.urb) };
         } else {
             let num_packets = self.urb().number_of_packets_or_stream_id as usize;
             let alloc_size = size_of::<Urb>() + num_packets * size_of::<IsoPacketDesc>();
@@ -188,18 +188,6 @@ impl TransferData {
         }
     }
 
-    pub fn end_iso(&self) -> Option<bool> {
-        if self.ep_type == TransferType::Isochronous {
-            let urb = self.urb();
-            let packets = unsafe {
-                slice::from_raw_parts(self.urb_iso, urb.number_of_packets_or_stream_id as usize)
-            };
-            Some(packets.iter().all(|p| p.status == 0))
-        } else {
-            None
-        }
-    }
-
     pub fn take_completion(&mut self) -> Completion {
         let status = self.status();
         let requested_len = self.urb().buffer_length as u32;
@@ -216,6 +204,26 @@ impl TransferData {
         self.urb_mut().actual_length = 0;
         let allocator = mem::replace(&mut self.allocator, Allocator::Default);
 
+        let iso = if self.ep_type == TransferType::Isochronous {
+            let iso = unsafe {
+                slice::from_raw_parts(
+                    self.urb_iso,
+                    self.urb().number_of_packets_or_stream_id as usize,
+                )
+            };
+            iso.iter()
+                .map(|i| {
+                    Ok(IsoStatus {
+                        length: i.length,
+                        actual_length: i.actual_length,
+                        status: i.status,
+                    })
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
         Completion {
             status,
             actual_len,
@@ -226,6 +234,7 @@ impl TransferData {
                 capacity,
                 allocator,
             },
+            iso_status: iso,
         }
     }
 
