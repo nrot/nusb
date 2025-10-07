@@ -4,7 +4,10 @@
 //! [usbfs]: https://www.kernel.org/doc/html/latest/driver-api/usb/usb.html#the-usb-character-device-nodes
 //! [uapi]: https://github.com/torvalds/linux/blob/master/tools/include/uapi/linux/usbdevice_fs.h
 #![allow(dead_code)]
-use std::ffi::{c_int, c_uchar, c_uint, c_void};
+use std::{
+    ffi::{c_int, c_uchar, c_uint, c_void},
+    fmt::Debug,
+};
 
 use linux_raw_sys::ioctl::{
     USBDEVFS_CLAIMINTERFACE, USBDEVFS_CLEAR_HALT, USBDEVFS_CONNECT, USBDEVFS_CONTROL,
@@ -12,6 +15,7 @@ use linux_raw_sys::ioctl::{
     USBDEVFS_IOCTL, USBDEVFS_REAPURBNDELAY, USBDEVFS_RELEASEINTERFACE, USBDEVFS_RESET,
     USBDEVFS_SETCONFIGURATION, USBDEVFS_SETINTERFACE, USBDEVFS_SUBMITURB,
 };
+use log::trace;
 use rustix::{
     fd::AsFd,
     io,
@@ -151,6 +155,7 @@ unsafe impl<const OPCODE: Opcode, Input> Ioctl for PassPtr<OPCODE, Input> {
 }
 
 pub unsafe fn submit_urb<Fd: AsFd>(fd: Fd, urb: *mut Urb) -> io::Result<()> {
+    trace!("Submit urb: {urb:?}");
     unsafe {
         let ctl = PassPtr::<{ USBDEVFS_SUBMITURB as _ }, Urb>::new(urb);
         ioctl::ioctl(fd, ctl)
@@ -191,14 +196,14 @@ pub const USBDEVFS_URB_TYPE_BULK: c_uchar = 3;
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct IsoPacketDesc{
+pub struct IsoPacketDesc {
     pub length: c_uint,
     pub actual_length: c_uint,
-    pub status: c_uint
+    pub status: c_uint,
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Urb {
     pub ep_type: c_uchar,
     pub endpoint: c_uchar,
@@ -212,8 +217,33 @@ pub struct Urb {
     pub error_count: c_int,
     pub signr: c_uint,
     pub usercontext: *mut c_void,
-    pub iso_frame_desc: *mut IsoPacketDesc,
     // + variable size array of iso_packet_desc
+    // pub iso_frame_desc: [IsoPacketDesc; 0],
+}
+
+impl Debug for Urb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Urb")
+            .field("ep_type", &self.ep_type)
+            .field("endpoint", &self.endpoint)
+            .field("status", &self.status)
+            .field("flags", &self.flags)
+            .field("buffer", &self.buffer)
+            .field("buffer_length", &self.buffer_length)
+            .field("actual_length", &self.actual_length)
+            .field("start_frame", &self.start_frame)
+            .field(
+                "number_of_packets_or_stream_id",
+                &self.number_of_packets_or_stream_id,
+            )
+            .field("error_count", &self.error_count)
+            .field("signr", &self.signr)
+            .field("usercontext", &self.usercontext)
+            // .field("iso_frame_desc", unsafe {
+            //     &std::slice::from_raw_parts(self.iso_frame_desc, self.number_of_packets_or_stream_id as usize)
+            // })
+            .finish()
+    }
 }
 
 pub struct Transfer<const OPCODE: Opcode, Input> {

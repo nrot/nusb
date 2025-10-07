@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    transfer::{Buffer, BulkOrInterrupt, Completion, In, Isochronous, TransferError},
+    transfer::{Buffer, BulkOrInterrupt, Completion, In, Isochronous, Out, TransferError},
     Endpoint,
 };
 

@@ -778,12 +778,12 @@ impl LinuxEndpoint {
             .push_back(self.inner.interface.device.submit(transfer));
     }
 
-    pub(crate) fn start_iso(&mut self, data: Buffer, iso_packet_amount: usize) {
+    pub(crate) fn start_iso(&mut self, data: Buffer, iso_packets: usize, iso_packet_size: usize) {
         debug_assert_eq!(self.inner.ep_type, TransferType::Isochronous);
         trace!("Submit iso");
 
         let mut transfer = self.get_transfer();
-        transfer.set_iso_buffer(data, iso_packet_amount as u32);
+        transfer.set_iso_buffer(data,iso_packets,  iso_packet_size as u32);
 
         trace!("Submit iso transfer: {transfer:#?}");
         self.pending

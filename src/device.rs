@@ -10,7 +10,7 @@ use crate::{
     },
     ActiveConfigurationError, DeviceInfo, Error, ErrorKind, GetDescriptorError, MaybeFuture, Speed,
 };
-use log::{error, warn};
+use log::{debug, error, trace, warn};
 use std::{
     fmt::Debug,
     future::{poll_fn, Future},
@@ -772,15 +772,22 @@ impl Endpoint<Isochronous, In>{
     /// equivalents.
     ///
     /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
-    pub fn reader(mut self, buffer_size:usize, iso_packet_amount: usize) -> std::io::Result<IsoReader> {
-        debug_assert_ne!(iso_packet_amount,  0);
+    pub fn reader(mut self, buffer_size:usize, iso_packets: usize, iso_packet_size: usize) -> std::io::Result<IsoReader> {
+        debug_assert_ne!(iso_packet_size,  0);
+        trace!("Buffer size: {buffer_size}; iso_packets: {iso_packets}; iso_packet_size: {iso_packet_size}");
+        // debug_assert!(buffer_size < self.max_packet_size());
 
         let buffer = self.backend.allocate(buffer_size)?;
+
+        for i in 0..iso_packets{
+            // let buffer = self.backend.allocate(iso_packet_size)?;
+            self.backend.start_iso(buffer, iso_packets, iso_packet_size);
+            break;
+        };
+
         // let buffer = Buffer::new(buffer_size);
 
-        self.backend.start_iso(buffer, iso_packet_amount);
-
-        IsoReader::new(self, iso_packet_amount)
+        IsoReader::new(self, iso_packet_size)
     }
 
     /// Wait for a pending transfer completion.
@@ -795,8 +802,7 @@ impl Endpoint<Isochronous, In>{
     ///  * if there are no transfers pending (that is, if [`Self::pending()`]
     ///    would return 0).
     pub fn wait_next_complete(&mut self, timeout: Duration) -> Option<Completion> {
-        self.backend.wait_next_complete(timeout);
-        todo!()
+        self.backend.wait_next_complete(timeout)
     }
 }
 

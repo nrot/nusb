@@ -1,6 +1,8 @@
 use std::{
+    alloc,
     fmt::Debug,
     mem::{self, ManuallyDrop},
+    pin::Pin,
     ptr::{addr_of_mut, null_mut},
     slice,
     time::Instant,
@@ -38,18 +40,29 @@ pub struct TransferData {
     capacity: u32,
     allocator: Allocator,
     pub(crate) deadline: Option<Instant>,
+    urb_iso: *mut IsoPacketDesc,
 }
 
 impl Debug for TransferData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TransferData")
-            .field("urb_ptr", &self.urb)
-            .field("urb", unsafe { &*self.urb })
-            .field("ep_type", &self.ep_type)
-            .field("capacity", &self.capacity)
-            .field("allocator", &self.allocator)
-            .field("deadline", &self.deadline)
-            .finish()
+        let mut f = f.debug_struct("TransferData");
+        f.field("urb_ptr", &self.urb);
+        f.field("urb", unsafe { &*self.urb });
+        f.field("ep_type", &self.ep_type);
+        f.field("capacity", &self.capacity);
+        f.field("allocator", &self.allocator);
+        f.field("deadline", &self.deadline);
+        f.field("urb_iso_ptr", &self.urb_iso);
+        if self.ep_type == TransferType::Isochronous && !self.urb_iso.is_null() {
+            f.field("urb_iso", unsafe {
+                &slice::from_raw_parts(
+                    self.urb_iso,
+                    self.urb().number_of_packets_or_stream_id as usize,
+                )
+            });
+        }
+
+        f.finish()
     }
 }
 
@@ -82,12 +95,13 @@ impl TransferData {
                 error_count: 0,
                 signr: 0,
                 usercontext: null_mut(),
-                iso_frame_desc: null_mut(),
+                // iso_frame_desc: null_mut(),
             })),
             ep_type: transfer_type,
             capacity: 0,
             allocator: Allocator::Default,
             deadline: None,
+            urb_iso: null_mut(),
         }
     }
 
@@ -122,36 +136,63 @@ impl TransferData {
         self.allocator = buf.allocator;
     }
 
-    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_amount: u32) {
+    pub fn set_iso_buffer(&mut self, buf: Buffer, iso_packet_amount: usize, iso_packet_size: u32) {
         trace!("Buffer for iso submit: {buf:#?}");
 
         debug_assert_eq!(self.ep_type, TransferType::Isochronous);
-        let packet_len = buf.capacity / iso_packet_amount;
-        debug_assert_ne!(packet_len, 0, "Buffer capacity: {}", buf.capacity);
+        debug_assert_ne!(iso_packet_size, 0, "Buffer capacity: {}", buf.capacity);
+
+        let alloc_size = size_of::<Urb>() + iso_packet_amount * size_of::<IsoPacketDesc>();
+        trace!(
+            "Alloc size: {alloc_size}; Urb size: {}; Urb align: {}; Iso Desc size: {}",
+            size_of::<Urb>(),
+            mem::align_of::<Urb>(),
+            size_of::<IsoPacketDesc>()
+        );
+        let layout = alloc::Layout::from_size_align(alloc_size, mem::align_of::<Urb>()).unwrap();
+        let ptr = unsafe { alloc::alloc_zeroed(layout) } as *mut Urb;
+        trace!("Allocated by: {ptr:?}");
+
+        let old_urb = self.urb().clone();
+        if !self.urb_iso.is_null() {
+            let for_drop = unsafe { Box::from_raw(self.urb) };
+        } else {
+            let num_packets = self.urb().number_of_packets_or_stream_id as usize;
+            let alloc_size = size_of::<Urb>() + num_packets * size_of::<IsoPacketDesc>();
+            let layout =
+                alloc::Layout::from_size_align(alloc_size, mem::align_of::<Urb>()).unwrap();
+            unsafe { alloc::dealloc(self.urb as *mut _, layout) };
+
+            self.urb_iso = null_mut();
+        };
+        self.urb = ptr;
+        self.urb_iso = unsafe { ptr.add(1) as *mut _ };
+        trace!("Urb iso: {:?}", self.urb_iso);
+
+        self.urb_mut().endpoint = old_urb.endpoint;
+        self.urb_mut().ep_type = old_urb.ep_type;
 
         self.urb_mut().number_of_packets_or_stream_id = iso_packet_amount as u32;
         self.set_buffer(buf);
 
-        let mut iso_packets = Vec::with_capacity(iso_packet_amount as usize);
-        for _ in 0..iso_packet_amount {
-            iso_packets.push(IsoPacketDesc {
-                length: packet_len as u32,
-                actual_length: 0,
-                status: 0,
-            });
+        const USBFS_URB_ISO_ASAP: u32 = 0x02;
+        const USER_CONTEXT: &str = "Some string";
+        self.urb_mut().flags = USBFS_URB_ISO_ASAP;
+        self.urb_mut().usercontext = USER_CONTEXT.as_ptr() as *mut _;
+
+        let iso_packets = unsafe { slice::from_raw_parts_mut(self.urb_iso, iso_packet_amount) };
+        for i in 0..iso_packet_amount {
+            iso_packets[i].length = iso_packet_size as u32;
+            iso_packets[i].actual_length = 0;
+            iso_packets[i].status = 0;
         }
-        let mut iso_packets = ManuallyDrop::new(iso_packets);
-        self.urb_mut().iso_frame_desc = iso_packets.as_mut_ptr();
     }
 
     pub fn end_iso(&self) -> Option<bool> {
         if self.ep_type == TransferType::Isochronous {
             let urb = self.urb();
             let packets = unsafe {
-                slice::from_raw_parts(
-                    urb.iso_frame_desc,
-                    urb.number_of_packets_or_stream_id as usize,
-                )
+                slice::from_raw_parts(self.urb_iso, urb.number_of_packets_or_stream_id as usize)
             };
             Some(packets.iter().all(|p| p.status == 0))
         } else {
