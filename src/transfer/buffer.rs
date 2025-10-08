@@ -200,6 +200,9 @@ impl Buffer {
         }
     }
 
+    /// Unsafe getting buffer for URB ISO completion
+    /// 
+    /// #Safety Use only for ISO tranfsers answer
     pub unsafe fn raw_requested(&self) -> &[u8]{
         unsafe {
             slice::from_raw_parts(self.ptr, self.requested_len as usize)
