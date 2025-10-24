@@ -545,6 +545,7 @@ impl<EpType: BulkOrInterrupt> futures_io::AsyncBufRead
     }
 }
 
+/// Isochronous usb reader
 pub struct IsoReader {
     endpoint: Endpoint<Isochronous, In>,
     buffer_size: usize,
@@ -553,6 +554,7 @@ pub struct IsoReader {
 }
 
 impl IsoReader {
+    /// Create new object
     pub fn new(
         endpoint: Endpoint<Isochronous, In>,
         buffer_size: usize,
@@ -567,6 +569,7 @@ impl IsoReader {
         })
     }
 
+    /// Read next ready URB package. And send read next URB request
     pub fn wait_next_complete(&mut self, timeout: Duration)->Option<Completion>{
         let res = self.endpoint.wait_next_complete(timeout);
 
@@ -575,29 +578,5 @@ impl IsoReader {
         }
 
         res
-    }
-}
-
-impl Read for IsoReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        todo!()
-    }
-}
-
-impl BufRead for IsoReader {
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
-        let completion = self
-            .endpoint
-            .wait_next_complete(Duration::from_secs(1))
-            .ok_or(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "timeout waiting for read",
-            ))?;
-
-        todo!()
-    }
-
-    fn consume(&mut self, amount: usize) {
-        todo!()
     }
 }

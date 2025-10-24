@@ -775,42 +775,40 @@ impl Endpoint<Isochronous, In> {
     /// See [`EndpointRead::new`][`crate::io::EndpointRead::new`] for details.
     pub fn reader(
         mut self,
-        buffer_size: usize,
+        tranfser_amount: usize,
         iso_packets: usize,
         iso_packet_size: usize,
     ) -> std::io::Result<IsoReader> {
         debug_assert_ne!(iso_packet_size, 0);
+        let buffer_size = iso_packets * iso_packet_size;
         trace!("Buffer size: {buffer_size}; iso_packets: {iso_packets}; iso_packet_size: {iso_packet_size}");
-        // debug_assert!(buffer_size < self.max_packet_size());
 
-        for _ in 0..1 {
+        for _ in 0..tranfser_amount {
             let buffer = self.backend.allocate(buffer_size)?;
 
             for _ in 0..iso_packets {
-                // let buffer = self.backend.allocate(iso_packet_size)?;
                 self.backend.start_iso(buffer, iso_packets, iso_packet_size);
                 break;
             }
         }
 
-        // let buffer = Buffer::new(buffer_size);
-
-        IsoReader::new(self, buffer_size, iso_packets, iso_packet_size )
+        IsoReader::new(self, buffer_size, iso_packets, iso_packet_size)
     }
 
-    pub(crate) fn read_next(&mut self,
+    pub(crate) fn read_next(
+        &mut self,
         buffer_size: usize,
         iso_packets: usize,
-        iso_packet_size: usize,)->std::io::Result<()>{
-             let buffer = self.backend.allocate(buffer_size)?;
+        iso_packet_size: usize,
+    ) -> std::io::Result<()> {
+        let buffer = self.backend.allocate(buffer_size)?;
 
-            for _ in 0..iso_packets {
-                // let buffer = self.backend.allocate(iso_packet_size)?;
-                self.backend.start_iso(buffer, iso_packets, iso_packet_size);
-                break;
-            }
-            Ok(())
+        for _ in 0..iso_packets {
+            self.backend.start_iso(buffer, iso_packets, iso_packet_size);
+            break;
         }
+        Ok(())
+    }
 
     /// Wait for a pending transfer completion.
     ///

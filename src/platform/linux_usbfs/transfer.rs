@@ -290,7 +290,18 @@ impl Drop for TransferData {
     fn drop(&mut self) {
         unsafe {
             drop(self.take_completion());
-            drop(Box::from_raw(self.urb));
+            if !self.urb_iso.is_null() {
+                let num_packets = self.urb().number_of_packets_or_stream_id as usize;
+                let alloc_size = size_of::<Urb>() + num_packets * size_of::<IsoPacketDesc>();
+                let layout =
+                    alloc::Layout::from_size_align(alloc_size, mem::align_of::<Urb>()).unwrap();
+                alloc::dealloc(self.urb as *mut _, layout);
+
+                self.urb_iso = null_mut();
+                self.urb = null_mut();
+            } else {
+                drop(Box::from_raw(self.urb));
+            }
         }
     }
 }
